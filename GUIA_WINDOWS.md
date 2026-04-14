@@ -369,3 +369,48 @@ docker compose logs hive
 ```powershell
 docker compose logs hdfs-init
 ```
+
+## 15. Empezar de cero
+
+Si algo salio mal y quieres borrar todo para volver a comenzar desde cero, usa estos pasos.
+
+### Detener y borrar contenedores
+
+```powershell
+docker compose down
+```
+
+### Borrar tambien los volumenes
+
+```powershell
+docker compose down -v
+```
+
+Esto borra:
+
+- la base de datos Postgres del metastore
+- los datos de HDFS
+- cualquier informacion guardada en los volumenes de Docker
+
+### Volver a crear el entorno
+
+Despues de borrar todo, puedes volver a empezar con:
+
+```powershell
+docker compose --env-file .env up -d
+```
+
+### Verificar que realmente quedo limpio
+
+```powershell
+docker compose ps
+docker volume ls
+```
+
+### Recomendacion
+
+Usa `docker compose down -v` solo si realmente quieres borrar todo. Si solo quieres apagar el entorno temporalmente, usa:
+
+```powershell
+docker compose stop
+```
