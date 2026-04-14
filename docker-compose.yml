@@ -1,0 +1,199 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    pull_policy: if_not_present
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-metastore}
+      POSTGRES_USER: ${POSTGRES_USER:-hive}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-CHANGE_ME}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER:-hive} -d ${POSTGRES_DB:-metastore}
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  hive:
+    image: mtsrus/hadoop:hadoop3.3.6-hive3.1.3
+    pull_policy: if_not_present
+    restart: unless-stopped
+    hostname: hive
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - /bin/bash -lc "beeline -u jdbc:hive2://localhost:10000/default -n anonymous -e 'show databases;' >/dev/null 2>&1"
+      interval: 30s
+      timeout: 30s
+      retries: 10
+      start_period: 240s
+    entrypoint:
+      - /bin/bash
+      - -lc
+      - |
+        mkdir -p /etc/hadoop
+        cat > /scripts/start-hdfs.sh <<'EOF'
+        #!/bin/bash
+        set -e
+        rm -rf /opt/hadoop/logs/* || true
+        if [ -z "$(find /var/hadoop/data/namenode/current -type f -name 'fsimage*' 2>/dev/null | head -n 1)" ]; then
+          echo "--------------- FORMATTING DATA DIRECTORY ---------------"
+          $$HADOOP_HOME/bin/hdfs namenode 2>&1 -format -nonInteractive | sed 's/^/| HDFS | /g' || true
+        fi
+        echo "--------------- STARTING HDFS NODES ---------------"
+        $$HADOOP_HOME/sbin/start-dfs.sh 2>&1 | sed 's/^/| HDFS | /g'
+        tail -F -n 1000 /opt/hadoop/logs/*namenode-*.log | sed 's/^/| NAMENODE | /g' &
+        tail -F -n 1000 /opt/hadoop/logs/*datanode-*.log | sed 's/^/| DATANODE | /g' &
+        /wait-for-it.sh -h localhost -p 9820 -t $$WAIT_TIMEOUT_SECONDS
+        /wait-for-it.sh -h localhost -p 9867 -t $$WAIT_TIMEOUT_SECONDS
+        echo "--------------- HDFS NODES READY ---------------"
+        EOF
+        chmod +x /scripts/start-hdfs.sh
+        cat > /scripts/populate-hdfs.sh <<'EOF'
+        #!/bin/bash
+        set -e
+        echo "--------------- INITIALIZE HDFS ---------------"
+        $$HADOOP_HOME/bin/hdfs dfsadmin -safemode wait
+        $$HADOOP_HOME/bin/hdfs dfs -chmod -R 1777 /
+        $$HADOOP_HOME/bin/hdfs dfs -mkdir -p /user/root
+        $$HADOOP_HOME/bin/hdfs dfs -chown root:hadoop /user/root
+        $$HADOOP_HOME/bin/hdfs dfs -chmod 777 /user
+        EOF
+        chmod +x /scripts/populate-hdfs.sh
+        cat > /etc/hadoop/mapred-site.xml <<EOF
+        <?xml version="1.0"?>
+        <?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+        <configuration>
+          <property>
+            <name>mapreduce.framework.name</name>
+            <value>yarn</value>
+          </property>
+          <property>
+            <name>yarn.app.mapreduce.am.env</name>
+            <value>HADOOP_MAPRED_HOME=/opt/hadoop</value>
+          </property>
+          <property>
+            <name>mapreduce.map.env</name>
+            <value>HADOOP_MAPRED_HOME=/opt/hadoop</value>
+          </property>
+          <property>
+            <name>mapreduce.reduce.env</name>
+            <value>HADOOP_MAPRED_HOME=/opt/hadoop</value>
+          </property>
+        </configuration>
+        EOF
+        mkdir -p /var/hive/conf
+        cat > /var/hive/conf/hive-site.xml <<EOF
+        <?xml version="1.0"?>
+        <?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+        <configuration>
+          <property>
+            <name>javax.jdo.option.ConnectionURL</name>
+            <value>$$HIVE_METASTORE_DB_URL</value>
+          </property>
+          <property>
+            <name>javax.jdo.option.ConnectionDriverName</name>
+            <value>$$HIVE_METASTORE_DB_DRIVER</value>
+          </property>
+          <property>
+            <name>javax.jdo.option.ConnectionUserName</name>
+            <value>$$HIVE_METASTORE_DB_USER</value>
+          </property>
+          <property>
+            <name>javax.jdo.option.ConnectionPassword</name>
+            <value>$$HIVE_METASTORE_DB_PASSWORD</value>
+          </property>
+          <property>
+            <name>hive.server2.authentication</name>
+            <value>NONE</value>
+          </property>
+          <property>
+            <name>hive.server2.thrift.port</name>
+            <value>10000</value>
+          </property>
+          <property>
+            <name>datanucleus.autoCreateTables</name>
+            <value>False</value>
+          </property>
+          <property>
+            <name>hive.metastore.schema.verification</name>
+            <value>false</value>
+          </property>
+          <property>
+            <name>hive.server2.enable.doAs</name>
+            <value>false</value>
+          </property>
+          <property>
+            <name>hive.exec.scratchdir</name>
+            <value>/tmp/hive</value>
+          </property>
+          <property>
+            <name>hive.metastore.warehouse.dir</name>
+            <value>/user/hive/warehouse</value>
+          </property>
+        </configuration>
+        EOF
+        exec /entrypoint.sh
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      HADOOP_HOME: /opt/hadoop
+      HADOOP_MAPRED_HOME: /opt/hadoop
+      WAIT_TIMEOUT_SECONDS: ${WAIT_TIMEOUT_SECONDS:-180}
+      WITH_HIVE_SERVER: "true"
+      WITH_HIVE_METASTORE_SERVER: "true"
+      HIVE_METASTORE_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-metastore}
+      HIVE_METASTORE_DB_DRIVER: org.postgresql.Driver
+      HIVE_METASTORE_DB_USER: ${POSTGRES_USER:-hive}
+      HIVE_METASTORE_DB_PASSWORD: ${POSTGRES_PASSWORD:-CHANGE_ME}
+    ports:
+      - "${HDFS_IPC_PORT:-9820}:9820"
+      - "${HDFS_WEB_PORT:-9870}:9870"
+      - "${YARN_UI_PORT:-8088}:8088"
+      - "${NODEMANAGER_UI_PORT:-8042}:8042"
+      - "${HIVESERVER2_PORT:-10000}:10000"
+      - "${HIVESERVER2_WEBUI_PORT:-10002}:10002"
+      - "${JOBHISTORY_UI_PORT:-19888}:19888"
+      - "${HIVE_METASTORE_PORT:-9083}:9083"
+    volumes:
+      - hadoop-data:/var/hadoop/data
+
+  hdfs-init:
+    image: mtsrus/hadoop:hadoop3.3.6-hive3.1.3
+    pull_policy: if_not_present
+    restart: "no"
+    depends_on:
+      hive:
+        condition: service_healthy
+    entrypoint:
+      - /bin/bash
+      - -lc
+      - |
+        set -e
+        /scripts/prepare-hadoop-conf.sh
+        sed -i 's#<value>hdfs://.*:9820</value>#<value>hdfs://hive:9820</value>#' /etc/hadoop/core-site.xml
+        for i in $$(seq 1 60); do
+          if hdfs dfs -test -d /; then
+            break
+          fi
+          sleep 5
+        done
+        hdfs dfs -mkdir -p /tmp /tmp/hive /tmp/hadoop-yarn /tmp/hadoop-yarn/staging /user/hive/warehouse
+        hdfs dfs -chmod 777 /tmp
+        hdfs dfs -chmod 1777 /tmp/hive
+        hdfs dfs -chmod 777 /tmp/hadoop-yarn
+        hdfs dfs -chmod 777 /tmp/hadoop-yarn/staging
+        hdfs dfs -chmod 1777 /user/hive/warehouse
+        hdfs dfs -ls /
+        hdfs dfs -ls /tmp
+
+volumes:
+  postgres-data:
+  hadoop-data:
