@@ -30,6 +30,18 @@ Asegurate de que esten habilitadas estas opciones:
 - usar **WSL2**
 - usar **Linux containers**
 
+Revisa esta pantalla de referencia para ubicar la opcion de integracion con WSL2 en Docker Desktop:
+
+![Docker WSL2 habilitado](images/Docker_WSL_Checked.jpeg)
+
+### Abrir Docker Desktop
+
+Despues de instalar Docker Desktop, **tienes que abrirlo y dejarlo corriendo**. Si Docker Desktop no esta abierto, los comandos de Docker en PowerShell no van a funcionar.
+
+Se ve mas o menos asi cuando esta abierto:
+
+![Docker Desktop corriendo](images/Docker_Running.jpeg)
+
 ### Verificar instalacion
 
 Abre **PowerShell** y ejecuta:
@@ -79,6 +91,10 @@ Por una contrasena real.
 docker compose --env-file .env up -d
 ```
 
+Cuando termina correctamente, la salida se ve similar a esta:
+
+![Docker Compose terminado](images/Docker_Compose_Finished.jpeg)
+
 ## 4. Revisar si ya quedo listo
 
 ```powershell
@@ -102,6 +118,16 @@ Tambien puedes abrir en el navegador:
 ```powershell
 docker compose stop
 ```
+
+Cuando termines de trabajar, este es el flujo recomendado:
+
+1. salir de Beeline si lo tienes abierto
+2. detener el stack con `docker compose stop`
+3. cerrar Docker Desktop
+
+En Docker Desktop, puedes cerrarlo desde el icono de la bandeja del sistema:
+
+![Cerrar Docker Desktop](images/Docker_Shut_Down.jpeg)
 
 ## 6. Volver a encenderlo
 

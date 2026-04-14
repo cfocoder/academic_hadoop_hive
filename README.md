@@ -17,10 +17,10 @@ La idea es que el entorno sea:
 
 ## Archivos principales
 
-- [docker-compose.yml](/home/hectorsa/Documents/academic_hadoop_hive/docker-compose.yml)
-- [.env.example](/home/hectorsa/Documents/academic_hadoop_hive/.env.example)
-- [GUIA_LINUX.md](/home/hectorsa/Documents/academic_hadoop_hive/GUIA_LINUX.md)
-- [GUIA_WINDOWS.md](/home/hectorsa/Documents/academic_hadoop_hive/GUIA_WINDOWS.md)
+- [docker-compose.yml](docker-compose.yml)
+- [.env.example](.env.example)
+- [GUIA_LINUX.md](GUIA_LINUX.md)
+- [GUIA_WINDOWS.md](GUIA_WINDOWS.md)
 
 ## Persistencia de datos
 
@@ -77,6 +77,8 @@ docker compose --env-file .env up -d
 
 En Windows se recomienda usar **PowerShell** en lugar de `cmd.exe`, porque los comandos de copia de archivos y manejo de rutas funcionan mejor ahi.
 
+En Windows, antes de ejecutar cualquier comando, abre **Docker Desktop** y dejalo corriendo. Si Docker Desktop no esta abierto, los comandos de terminal no van a funcionar.
+
 En Windows PowerShell:
 
 ```powershell
@@ -130,12 +132,14 @@ Windows:
 docker compose stop
 ```
 
+En Windows, cuando ya termines de trabajar, ademas de detener el stack, puedes cerrar Docker Desktop.
+
 ## Guias completas
 
 Para instrucciones paso a paso, usa la guia correspondiente a tu sistema:
 
-- [GUIA_LINUX.md](/home/hectorsa/Documents/academic_hadoop_hive/GUIA_LINUX.md)
-- [GUIA_WINDOWS.md](/home/hectorsa/Documents/academic_hadoop_hive/GUIA_WINDOWS.md)
+- [GUIA_LINUX.md](GUIA_LINUX.md)
+- [GUIA_WINDOWS.md](GUIA_WINDOWS.md)
 
 En Windows, la guia esta escrita para **PowerShell**. Aunque Docker tambien puede usarse desde `cmd.exe`, no es la opcion recomendada para este proyecto.
 
